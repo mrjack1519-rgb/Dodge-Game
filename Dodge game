@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Dodge Blocks — Simple Web Game</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{ --bg:#0f1724; --panel:#0b1220; --text:#e6eef8; }
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial;background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center}
+    .wrap{width:480px;max-width:95vw;padding:16px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);box-shadow:0 8px 30px rgba(2,6,23,0.7)}
+    canvas{display:block;width:100%;height:640px;background:linear-gradient(180deg,#071124,#041021);border-radius:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.03)}
+    .hud{display:flex;justify-content:space-between;padding:8px 4px 0 4px;font-size:14px;opacity:0.9}
+    .hint{font-size:12px;opacity:0.7;margin-top:8px}
+    .center{text-align:center;margin-top:10px}
+    button{background:#1f2937;color:var(--text);border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hud">
+      <div>Score: <span id="score">0</span></div>
+      <div>High: <span id="best">0</span></div>
+    </div>
+    <canvas id="game" width="480" height="640"></canvas>
+    <div class="center">
+      <div id="message" class="hint">Use ← → or A D to move. Press Space to restart after game over.</div>
+    </div>
+  </div>
+
+  <script>
+  // Simple "Dodge the falling blocks" game
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const messageEl = document.getElementById('message');
+
+  const W = canvas.width;
+  const H = canvas.height;
+
+  // Player
+  const player = {
+    x: W/2 - 22,
+    y: H - 70,
+    w: 44,
+    h: 12,
+    speed: 360, // pixels per second
+    vx: 0
+  };
+
+  let keys = {};
+  window.addEventListener('keydown', e => { keys[e.key] = true; if(e.key === ' ' ) { if(gameOver) reset(); } });
+  window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+  // Obstacles
+  let obstacles = [];
+  let spawnInterval = 800; // ms
+  let lastSpawn = 0;
+
+  // Game state
+  let lastTime = 0;
+  let score = 0;
+  let best = localStorage.getItem('dodge_best') ? parseInt(localStorage.getItem('dodge_best')) : 0;
+  bestEl.textContent = best;
+  let gameOver = false;
+
+  function spawnObstacle() {
+    const width = 24 + Math.random()*60; // 24..84
+    const x = Math.random() * (W - width);
+    const speed = 120 + Math.random()*220; // falling speed
+    obstacles.push({ x, y: -30, w: width, h: 18, speed });
+  }
+
+  function update(dt) {
+    if(gameOver) return;
+
+    // Input
+    const left = keys['ArrowLeft'] || keys['a'] || keys['A'];
+    const right = keys['ArrowRight'] || keys['d'] || keys['D'];
+    player.vx = 0;
+    if(left) player.vx = -player.speed;
+    if(right) player.vx = player.speed;
+
+    player.x += player.vx * dt;
+    if(player.x < 0) player.x = 0;
+    if(player.x + player.w > W) player.x = W - player.w;
+
+    // spawn obstacles
+    lastSpawn += dt * 1000;
+    if(lastSpawn >= spawnInterval) {
+      spawnObstacle();
+      lastSpawn = 0;
+      // gradually increase difficulty
+      spawnInterval = Math.max(300, spawnInterval * 0.98);
+    }
+
+    // update obstacles
+    for(let i = obstacles.length - 1; i >= 0; i--) {
+      const ob = obstacles[i];
+      ob.y += ob.speed * dt;
+      if(ob.y > H + 50) {
+        obstacles.splice(i,1);
+        // reward for dodging
+        score += 10;
+      } else {
+        // check collision (AABB)
+        if(!(player.x + player.w < ob.x || player.x > ob.x + ob.w || player.y + player.h < ob.y || player.y > ob.y + ob.h)) {
+          // collision -> game over
+          gameOver = true;
+          messageEl.textContent = 'Game over! Press Space to restart.';
+          if(score > best) {
+            best = score;
+            localStorage.setItem('dodge_best', best);
+            bestEl.textContent = best;
+          }
+        }
+      }
+    }
+
+    // small passive score over time
+    score += Math.floor(dt * 50); // gives steady growth; integer
+    scoreEl.textContent = score;
+  }
+
+  function draw() {
+    // clear
+    ctx.clearRect(0,0,W,H);
+
+    // background subtle grid
+    ctx.fillStyle = '#071426';
+    ctx.fillRect(0,0,W,H);
+
+    // draw player
+    ctx.fillStyle = '#2F86FF';
+    roundRect(ctx, player.x, player.y, player.w, player.h, 4, true, false);
+
+    // draw obstacles
+    for(const ob of obstacles) {
+      ctx.fillStyle = '#FF4D4D';
+      roundRect(ctx, ob.x, ob.y, ob.w, ob.h, 6, true, false);
+    }
+
+    // score overlay (small)
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.fillRect(8,8,120,30);
+    ctx.fillStyle = '#e6eef8';
+    ctx.font = '14px system-ui,Arial';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Score: ' + score, 16, 22);
+  }
+
+  function loop(ts) {
+    if(!lastTime) lastTime = ts;
+    const dt = (ts - lastTime) / 1000;
+    lastTime = ts;
+
+    update(dt);
+    draw();
+
+    requestAnimationFrame(loop);
+  }
+
+  function reset() {
+    obstacles = [];
+    spawnInterval = 800;
+    lastSpawn = 0;
+    score = 0;
+    scoreEl.textContent = score;
+    messageEl.textContent = 'Use ← → or A D to move. Press Space to restart after game over.';
+    player.x = W/2 - player.w/2;
+    gameOver = false;
+  }
+
+  // utility: rounded rect
+  function roundRect(ctx,x,y,w,h,r,fill,stroke){
+    if (typeof r === 'undefined') r = 5;
+    if (typeof r === 'number') r = {tl:r,tr:r,br:r,bl:r};
+    ctx.beginPath();
+    ctx.moveTo(x + r.tl, y);
+    ctx.lineTo(x + w - r.tr, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r.tr);
+    ctx.lineTo(x + w, y + h - r.br);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h);
+    ctx.lineTo(x + r.bl, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r.bl);
+    ctx.lineTo(x, y + r.tl);
+    ctx.quadraticCurveTo(x, y, x + r.tl, y);
+    ctx.closePath();
+    if(fill) ctx.fill();
+    if(stroke) ctx.stroke();
+  }
+
+  // start loop
+  requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
+
