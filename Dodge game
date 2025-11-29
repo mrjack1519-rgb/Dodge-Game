@@ -10,6 +10,8 @@
     .wrap{width:480px;max-width:95vw;padding:16px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);box-shadow:0 8px 30px rgba(2,6,23,0.7)}
     canvas{display:block;width:100%;height:640px;background:linear-gradient(180deg,#071124,#041021);border-radius:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.03)}
     .hud{display:flex;justify-content:space-between;padding:8px 4px 0 4px;font-size:14px;opacity:0.9}
+    
+    
     .hint{font-size:12px;opacity:0.7;margin-top:8px}
     .center{text-align:center;margin-top:10px}
     button{background:#1f2937;color:var(--text);border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
@@ -196,4 +198,5 @@
   </script>
 </body>
 </html>
+ 
 
